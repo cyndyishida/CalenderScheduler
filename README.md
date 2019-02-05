@@ -1,4 +1,4 @@
-# CalenderScheduler
+# Calender Scheduler
 
 ### Algorithm 
 *word vomit so I dont forgot what I made* 
