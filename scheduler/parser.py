@@ -1,8 +1,8 @@
 import core_types as core
 import datetime as dt
 from typing import List
-import calender_read as msft
-import google_cal_quickstart as ggl
+#import calender_read as msft
+#import google_cal_quickstart as ggl
 
 def parse_txt(input_file) -> List[core.Event]:
     d_len = 10 # expected date input YYYY-MM-DD

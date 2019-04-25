@@ -1,16 +1,18 @@
 from typing import Optional, List
 import datetime as dt
-import core_types as core
-import parser as ps
+import logging
+from . import core_types as core
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-DAY_SPAN = 7
+DAY_SPAN = 2
 # times denote minutes 
-AUTO_PREF_START_TIME = 15 * 60
-AUTO_PREF_END_TIME  = 17 * 60
+AUTO_PREF_START_TIME = 8 * 60
+AUTO_PREF_END_TIME  = 10 * 60
 AUTO_PREF_START_DATE = dt.date.today() + dt.timedelta(days=1)
-GRANULARITY = 15
-DESIRED_TIME_AMOUNT = 30
+GRANULARITY = 10
+DESIRED_TIME_AMOUNT = 60
 BUFFER_TIME = 0
 
 '''
@@ -37,8 +39,8 @@ class MeetingCalendar:
                  for j in range(self._st_time, self._end_time, self._step)]
                 for i in range(self._day_span)]
 
-    def __init__(self, span=DAY_SPAN, start_time=AUTO_PREF_START_TIME, end_time=AUTO_PREF_END_TIME,
-                    start_date = AUTO_PREF_START_DATE, step = GRANULARITY):
+    def __init__(self, span: int=DAY_SPAN, start_time: int=AUTO_PREF_START_TIME, end_time: int=AUTO_PREF_END_TIME,
+                    start_date: dt.datetime = AUTO_PREF_START_DATE, step: int = GRANULARITY):
         self._day_span = span
         self._st_time = start_time
         self._end_time = end_time
@@ -47,21 +49,8 @@ class MeetingCalendar:
         self._grid = self.build_grid()
         self._best_times = None 
 
-        #num_days = DAY_SPAN 
-        #grid = []
-        #i = 0
-        #while i < num_days:
-        #    current_events = []
-        #    curr_day = AUTO_PREF_START_DATE + dt.timedelta(days=i)
-        #    if curr_day.weekday() not in {5,6}:
-        #        for j in range(start, end, step):
-        #            current_events.append(core.ScheduleNode(curr_day, dt.timedelta(minutes=j), dt.timedelta(minutes=j+step)))
-        #        grid.append(current_events)
-        #    else:
-        #        num_days += 1 
-        #    i += 1 
-
     def load_user_schedule(self, user_events: List[core.Event]) -> None:
+        logging.info("Starting to read calendars into calendar object") 
         initial = self._grid[0][0].raw_time
         max_steps = len(self._grid[0])
         for event in user_events:
@@ -84,7 +73,9 @@ class MeetingCalendar:
                         # boundary check
                         raise Exception('Misstep in calculation')
 
+        logging.info("Successful write to calendars into calendar object") 
 
+        
     def __str__(self) -> None:
         # generate pretty print grid template 
         dates  = [i[0].str_date for i in self._grid]
@@ -112,16 +103,14 @@ class MeetingCalendar:
         time_amount = allotted + buffer 
         best_times = core.SortedArray(count)
         desired_count = time_amount // self._step # allotted is in minutes
-        events_per_day = len(self._grid[0]) // desired_count
+        day_range = len(self._grid[0]) - desired_count + 1
         for d in range(len(self._grid)):
-            for t in range(len(self._grid[0])  - events_per_day + 1 ):
+            for t in range(day_range):
                 ev = [self._grid[d][i] for i in range(t, t + desired_count)]
                 best_times.add(ev)
 
         self.best_times = best_times.convert_to_events()
         return self.best_times
-
-
 
 def beautify(events) -> None:
     result_str = "Possible Optimal Times"
@@ -142,6 +131,19 @@ def beautify(events) -> None:
         result_str += f'\n {day:} {st:>{9}}  - {end:>{8}} EST'
     return result_str
 
+def serialize_events(events):
+    result = []
+    for ev in events: 
+        day = ev.day  
+        st =  str(ev.start_time)[:-3]  
+        et =  str(ev.end_time)[:-3]
+        # free_count 
+        busy_ppl = ev.busy_count 
+        
+        result.append(f"{day.strftime('%A %m/%d/%Y')} {st} - {et}, {busy_ppl}")
+
+    return result
+
 
 
 if __name__ == '__main__':
@@ -149,10 +151,10 @@ if __name__ == '__main__':
 
     calender = MeetingCalendar()
     user_events = []
-    user_events.append(core.Event(dt.date(2019, 3, 12),
+    user_events.append(core.Event(AUTO_PREF_START_DATE,
                              dt.timedelta(hours=15, minutes=11),
                              dt.timedelta(hours=15, minutes=55) ))
-    user_events.append(core.Event(dt.date(2019, 3, 12),
+    user_events.append(core.Event(AUTO_PREF_START_DATE,
                                 dt.timedelta(hours=15, minutes=11),
                                 dt.timedelta(hours=15, minutes=20) ))
     calender.load_user_schedule(user_events)
@@ -160,4 +162,5 @@ if __name__ == '__main__':
     events = calender.generate_best_times()
     result = beautify(events)
     print(result)
+    print(serialize_events(events))
 

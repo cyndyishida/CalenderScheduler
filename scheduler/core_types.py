@@ -3,7 +3,10 @@ from collections import namedtuple
 from typing import List
 
 Event = namedtuple('Event', 'day, start_time, end_time')
+FinalTime = namedtuple('FinalTime', 'day, start_time, end_time, busy_count')
 Weights = namedtuple('Weights', 'people, time')
+
+ZERO_TIME = dt.timedelta(hours=0, minutes=0, seconds=0)
 class ScheduleNode:
     __slots__ = '_day', '_start', '_end', '_taken_count', '_step'
 
@@ -61,37 +64,46 @@ class ScheduleNode:
 
 
 PRIORITIES = {
-    0  : Weights(.7 , .3)
+    0  : Weights(.9 , .1), # care more about people vs time
+    1  : Weights(.5 , .5)
 }
 
 class SortedNode:
     def __init__(self, data, pri):
         self._data = data
         self._numbusy = 0
-        self._full_time = dt.timedelta(hours=0, minutes=0, seconds=0)
+        self._full_time = ZERO_TIME
         self._score = self._compute_score(pri)
         self._duration = self._data[0].duration * len(self._data)
 
 
     def _compute_score(self,pri):
-
-        curr_duration= dt.timedelta(hours=0, minutes=0, seconds=0)
+        # lower score is better?
+        curr_duration= ZERO_TIME
+        num_busy = 0
         for sch in self._data:
-            if sch.raw_count  > self._numbusy:
-                self._numbusy = sch.raw_count
             if not sch.open:
-                curr_duration = dt.timedelta(hours=0, minutes=0, seconds=0)
+                curr_duration = ZERO_TIME
+                num_busy = max(sch.raw_count, num_busy)
             else:
                 curr_duration += sch.duration
             if curr_duration > self._full_time:
                 self._full_time = curr_duration
 
+        if self._full_time == ZERO_TIME:
+            # here we found 0 desired times so everyone is some degree of busy
+            self._numbusy = num_busy
+            self._full_time = sch.duration * len(self._data)
+        else:
+            # we found a shorter time slot that everyone is free
+            self._numbusy = 0
         time_weight = (self._full_time /sch.duration ) * PRIORITIES[pri].time
         people_weight = -(self._numbusy * PRIORITIES[pri].people ) + 1
         return time_weight + people_weight
 
     def event_cast(self):
-        result = Event(self._data[0]._day, self._data[0]._start, self._data[0]._start + self._full_time)
+        result = FinalTime(self._data[0]._day, self._data[0]._start, 
+                self._data[0]._start + self._full_time, self._numbusy)
         return result
 
 
@@ -127,6 +139,8 @@ class SortedArray:
         if self._size == 1:
             self._data.append(node)
             return
+        if self._size == self._capacity and node > self._data[-1]:
+            return # don't bother adding elements that is greater (worse score) 
         position = self.search(node)
         self._data.insert(position, node)
         if self._size > self._capacity:
@@ -155,3 +169,43 @@ class SortedArray:
         return '\n'.join(str(i) for i in self._data)
 
     __repr__ = __str__
+
+
+"""
+FUNCTIONS
+"""
+def get_date_from_str(obj) :
+    '''
+    obj must be in format yyy-mm-dd
+    '''
+    yr, mth, day = obj.split('-')
+    return  dt.date(year=int(yr), month=int(mth), day=int(day))
+
+def get_time_from_str(obj):
+    '''
+    obj must be in format hh:mm:ss
+    '''
+    hr, mint, sec = [int(i) for i in obj.split(':')]
+    timeobj =dt.time(hr,mint,sec)
+    return dt.datetime.combine(dt.date.min, timeobj) - dt.datetime.min
+
+def get_time_from_dt(obj):
+    obj = obj.time()
+    return dt.datetime.combine(date.min, obj) - datetime.min
+
+
+def parse_best_time_string(time):
+    best_time = time.split()[1:5]
+    best_time.pop(2)
+    date, start, end = best_time 
+    s_hr = start[:start.index(':')]
+    e_hr = end[:end.index(':')]
+    start = f"{0 if len(s_hr) == 1 else ''}{start}:00"
+    end = f"{0 if len(e_hr) == 1 else ''}{end}:00"
+    # date conversion
+    date = date.split('/')
+    date = f"{date[-1]}-{date[0]}-{date[1]}"
+    start = f"{date}T{start}-04:00"
+    end = f"{date}T{end}-04:00"
+    return start, end 
+

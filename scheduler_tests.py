@@ -1,6 +1,6 @@
-import schedule as sh
+import scheduler.schedule as sh
 import datetime as dt
-import core_types as core
+import scheduler.core_types as core
 
 def test_build_grid_default():
     cal = sh.MeetingCalendar()
@@ -45,4 +45,30 @@ def test_generate_best_time_with_buffer_best():
     cal = sh.MeetingCalendar(start_date = date, start_time=start, end_time=end, span=span)
     events = [sh.core.Event(date, dt.timedelta(minutes=start), dt.timedelta(minutes=start+15))]
     cal.load_user_schedule(events)
-     
+
+
+def test_generate_best_time_no_one():
+    ## prioritize people super small time slot has better view
+    date = dt.date(year=2019, month=4, day=10)
+    calender = sh.MeetingCalendar( step= 10, start_date = date , span = 2, start_time = 8 * 60, end_time = 10 * 60)
+    user_events = []
+    user_events.append(core.Event(date,
+                                  dt.timedelta(hours=8, minutes=11),
+                                  dt.timedelta(hours=19, minutes=55) ))
+    user_events.append(core.Event(date,
+                                  dt.timedelta(hours=8, minutes=11),
+                                  dt.timedelta(hours=15, minutes=20) ))
+    user_events.append(core.Event(date + dt.timedelta(days=1),
+                                  dt.timedelta(hours=8, minutes=11),
+                                  dt.timedelta(hours=15, minutes=20) ))
+    calender.load_user_schedule(user_events)
+
+    events = calender.generate_best_times()
+    output = [
+            'Wednesday 04/10/2019 8:00 - 8:10, 0',
+            'Thursday 04/11/2019 8:00 - 8:10, 0',
+            'Thursday 04/11/2019 8:10 - 9:10, 1',
+            'Thursday 04/11/2019 8:20 - 9:20, 1',
+            'Thursday 04/11/2019 8:30 - 9:30, 1'
+        ]
+    assert sh.serialize_events(events ) == output
